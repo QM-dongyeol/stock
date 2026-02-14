@@ -1,0 +1,1102 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dividend Tracker - 배당금 관리</title>
+    <link rel="preconnect" href="https://cdn.jsdelivr.net">
+    <link rel="preconnect" href="https://fonts.cdnfonts.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js"></script>
+    <style>
+        :root {
+            --bg: #0D1117;
+            --card: #161B22;
+            --card-hover: #1C2128;
+            --primary: #58A6FF;
+            --accent: #3FB950;
+            --danger: #F85149;
+            --text: #E6EDF3;
+            --subtext: #8B949E;
+            --border: #30363D;
+            --shadow: 0 4px 24px rgba(0,0,0,0.4);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+
+        header {
+            text-align: center;
+            padding: 32px 0;
+            animation: fadeInDown 0.6s ease-out;
+        }
+
+        header h1 {
+            font-size: 32px;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 8px;
+        }
+
+        header p {
+            color: var(--subtext);
+            font-size: 14px;
+        }
+
+        .db-controls {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+            margin-bottom: 16px;
+            animation: fadeInDown 0.6s ease-out 0.1s both;
+        }
+
+        .btn-db {
+            background: var(--card);
+            border: 1px solid var(--border);
+            color: var(--subtext);
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn-db:hover {
+            border-color: var(--primary);
+            color: var(--text);
+        }
+
+        .btn-db svg {
+            width: 14px;
+            height: 14px;
+        }
+
+        .summary-bar {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+            margin-bottom: 32px;
+            animation: fadeInUp 0.6s ease-out 0.2s both;
+        }
+
+        .summary-card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .summary-card:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--shadow);
+        }
+
+        .summary-card .label {
+            font-size: 13px;
+            color: var(--subtext);
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .summary-card .value {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--accent);
+        }
+
+        .summary-card .value.dividend {
+            color: var(--primary);
+        }
+
+        .summary-card .value.rate {
+            color: var(--accent);
+        }
+
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 1.5fr;
+            gap: 24px;
+        }
+
+        @media (max-width: 900px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+            }
+            .summary-bar {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: var(--shadow);
+            animation: fadeInUp 0.6s ease-out 0.4s both;
+        }
+
+        .card-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .card-title::before {
+            content: '';
+            width: 4px;
+            height: 20px;
+            background: var(--primary);
+            border-radius: 2px;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 13px;
+            color: var(--subtext);
+            margin-bottom: 6px;
+            font-weight: 500;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 12px 14px;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text);
+            font-size: 14px;
+            font-family: inherit;
+            transition: border-color 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.15);
+        }
+
+        .form-group input::placeholder {
+            color: var(--subtext);
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-family: inherit;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary), #4090E0);
+            color: white;
+            width: 100%;
+            margin-top: 8px;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            transform: scale(1.02);
+            box-shadow: 0 4px 20px rgba(88, 166, 255, 0.4);
+        }
+
+        .btn-secondary {
+            background: var(--card);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 8px 14px;
+            font-size: 12px;
+        }
+
+        .btn-secondary:hover {
+            background: var(--card-hover);
+            border-color: var(--primary);
+        }
+
+        .btn-danger {
+            background: transparent;
+            border: 1px solid var(--danger);
+            color: var(--danger);
+            padding: 8px 14px;
+            font-size: 12px;
+        }
+
+        .btn-danger:hover {
+            background: var(--danger);
+            color: white;
+        }
+
+        .btn-add {
+            background: linear-gradient(135deg, var(--accent), #2EA043);
+            color: white;
+            padding: 8px 14px;
+            font-size: 12px;
+        }
+
+        .btn-add:hover {
+            transform: scale(1.02);
+            box-shadow: 0 4px 16px rgba(63, 185, 80, 0.4);
+        }
+
+        .stock-list {
+            max-height: 500px;
+            overflow-y: auto;
+        }
+
+        .stock-list::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .stock-list::-webkit-scrollbar-track {
+            background: var(--bg);
+            border-radius: 3px;
+        }
+
+        .stock-list::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 3px;
+        }
+
+        .stock-item {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 16px;
+            margin-bottom: 12px;
+            transition: all 0.3s ease;
+            animation: fadeInUp 0.4s ease-out both;
+        }
+
+        .stock-item:hover {
+            border-color: var(--primary);
+            box-shadow: 0 0 20px rgba(88, 166, 255, 0.1);
+        }
+
+        .stock-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .stock-name {
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .stock-account {
+            font-size: 12px;
+            color: var(--subtext);
+            background: var(--card);
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+
+        .stock-details {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .stock-detail {
+            text-align: center;
+        }
+
+        .stock-detail .label {
+            font-size: 11px;
+            color: var(--subtext);
+            margin-bottom: 4px;
+        }
+
+        .stock-detail .value {
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .stock-detail .value.accent {
+            color: var(--primary);
+        }
+
+        .stock-detail .value.green {
+            color: var(--accent);
+        }
+
+        .stock-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 48px 24px;
+            color: var(--subtext);
+        }
+
+        .empty-state svg {
+            width: 64px;
+            height: 64px;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .modal {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 28px;
+            width: 90%;
+            max-width: 420px;
+            transform: scale(0.9) translateY(20px);
+            transition: transform 0.3s ease;
+        }
+
+        .modal-overlay.active .modal {
+            transform: scale(1) translateY(0);
+        }
+
+        .modal-title {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .modal-title svg {
+            width: 24px;
+            height: 24px;
+            color: var(--primary);
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 12px;
+            margin-top: 24px;
+        }
+
+        .modal-actions .btn {
+            flex: 1;
+        }
+
+        .btn-cancel {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            color: var(--subtext);
+        }
+
+        .btn-cancel:hover {
+            border-color: var(--subtext);
+            color: var(--text);
+        }
+
+        .modal .form-group input[readonly] {
+            background: var(--bg);
+            color: var(--subtext);
+        }
+
+        .db-status {
+            text-align: center;
+            padding: 8px;
+            font-size: 12px;
+            color: var(--subtext);
+            margin-bottom: 16px;
+            border-radius: 6px;
+        }
+
+        .db-status.connected {
+            color: var(--accent);
+        }
+
+        .db-status.error {
+            color: var(--danger);
+        }
+
+        @keyframes fadeInDown {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .stock-item {
+            animation-delay: calc(var(--index) * 0.1s);
+        }
+
+        #fileInput {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📈 Dividend Tracker</h1>
+            <p>배당금 관리 및 투자 수익률 계산</p>
+        </header>
+
+        <div class="db-controls">
+            <button class="btn-db" onclick="exportDatabase()" title="DB 파일 내보내기">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
+                </svg>
+                내보내기
+            </button>
+            <button class="btn-db" onclick="document.getElementById('fileInput').click()" title="DB 파일 가져오기">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                </svg>
+                가져오기
+            </button>
+            <input type="file" id="fileInput" accept=".db,.sqlite" onchange="importDatabase(event)">
+        </div>
+
+        <div class="db-status" id="dbStatus">데이터베이스 초기화 중...</div>
+
+        <div class="summary-bar">
+            <div class="summary-card">
+                <div class="label">총 투자금</div>
+                <div class="value" id="totalInvestment">₩0</div>
+            </div>
+            <div class="summary-card">
+                <div class="label">월 예상 배당금</div>
+                <div class="value dividend" id="monthlyDividend">₩0</div>
+            </div>
+            <div class="summary-card">
+                <div class="label">평균 배당률</div>
+                <div class="value rate" id="avgDividendRate">0.00%</div>
+            </div>
+        </div>
+
+        <div class="main-grid">
+            <div class="card">
+                <h2 class="card-title">주식 등록</h2>
+                <form id="stockForm">
+                    <div class="form-group">
+                        <label>계좌명</label>
+                        <input type="text" id="accountName" placeholder="예: 신한카드, 키움 etc" required>
+                    </div>
+                    <div class="form-group">
+                        <label>주식명</label>
+                        <input type="text" id="stockName" placeholder="예: Samsung, Apple" required>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>매수가 (₩)</label>
+                            <input type="number" id="purchasePrice" placeholder="0" required min="0">
+                        </div>
+                        <div class="form-group">
+                            <label>주식수</label>
+                            <input type="number" id="shares" placeholder="0" required min="1">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>총액 (₩)</label>
+                        <input type="text" id="totalAmount" readonly placeholder="자동 계산">
+                    </div>
+                    <div class="form-group">
+                        <label>배당주기</label>
+                        <select id="dividendCycle" required>
+                            <option value="monthly">월간</option>
+                            <option value="quarterly">분기 (3개월)</option>
+                            <option value="semiannual">반기 (6개월)</option>
+                            <option value="annual">연간 (12개월)</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-primary" id="submitBtn" disabled>데이터베이스 로딩 중...</button>
+                </form>
+            </div>
+
+            <div class="card">
+                <h2 class="card-title">보유 주식</h2>
+                <div class="stock-list" id="stockList">
+                    <div class="empty-state">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                        </svg>
+                        <p>등록된 주식이 없습니다.<br>좌측에서 주식을 추가해주세요.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="purchaseModal">
+        <div class="modal">
+            <h3 class="modal-title">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                </svg>
+                추가 매수
+            </h3>
+            <form id="purchaseForm">
+                <input type="hidden" id="editStockId">
+                <div class="form-group">
+                    <label>주식명</label>
+                    <input type="text" id="editStockName" readonly>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>추가 매수가 (₩)</label>
+                        <input type="number" id="additionalPrice" placeholder="0" required min="0">
+                    </div>
+                    <div class="form-group">
+                        <label>추가 주식수</label>
+                        <input type="number" id="additionalShares" placeholder="0" required min="1">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>변경 후 총액 (₩)</label>
+                    <input type="text" id="newTotalAmount" readonly>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-cancel" onclick="closeModal('purchaseModal')">취소</button>
+                    <button type="submit" class="btn btn-primary">확인</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="dividendModal">
+        <div class="modal">
+            <h3 class="modal-title">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                배당 입력
+            </h3>
+            <form id="dividendForm">
+                <input type="hidden" id="dividendStockId">
+                <div class="form-group">
+                    <label>주식명</label>
+                    <input type="text" id="dividendStockName" readonly>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>배당 지급일</label>
+                        <input type="date" id="dividendDate" required>
+                    </div>
+                    <div class="form-group">
+                        <label>배당액 (₩)</label>
+                        <input type="number" id="dividendAmount" placeholder="0" required min="0">
+                    </div>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-cancel" onclick="closeModal('dividendModal')">취소</button>
+                    <button type="submit" class="btn btn-primary">저장</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        let db = null;
+        let SQL = null;
+
+        async function initDatabase() {
+            const statusEl = document.getElementById('dbStatus');
+            
+            try {
+                SQL = await initSqlJs({
+                    locateFile: file => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/${file}`
+                });
+
+                const savedDb = localStorage.getItem('stockDb');
+                if (savedDb) {
+                    const data = new Uint8Array(JSON.parse(savedDb));
+                    db = new SQL.Database(data);
+                    statusEl.textContent = 'SQLite 데이터베이스 연결됨';
+                    statusEl.className = 'db-status connected';
+                } else {
+                    db = new SQL.Database();
+                    createTables();
+                    statusEl.textContent = '새 데이터베이스 생성됨';
+                    statusEl.className = 'db-status connected';
+                }
+
+                document.getElementById('submitBtn').disabled = false;
+                document.getElementById('submitBtn').textContent = '주식 추가';
+                
+                loadStocks();
+            } catch (error) {
+                console.error('DB 초기화 오류:', error);
+                statusEl.textContent = '데이터베이스 오류: ' + error.message;
+                statusEl.className = 'db-status error';
+            }
+        }
+
+        function createTables() {
+            db.run(`
+                CREATE TABLE IF NOT EXISTS stocks (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    account_name TEXT,
+                    stock_name TEXT,
+                    purchase_price REAL,
+                    shares INTEGER,
+                    total_amount REAL,
+                    dividend_cycle TEXT,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            `);
+
+            db.run(`
+                CREATE TABLE IF NOT EXISTS dividends (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    stock_id INTEGER,
+                    dividend_date TEXT,
+                    amount REAL,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (stock_id) REFERENCES stocks(id) ON DELETE CASCADE
+                )
+            `);
+
+            saveDatabase();
+        }
+
+        function saveDatabase() {
+            const data = db.export();
+            const arr = Array.from(data);
+            localStorage.setItem('stockDb', JSON.stringify(arr));
+        }
+
+        function loadStocks() {
+            const results = db.exec(`
+                SELECT s.*, GROUP_CONCDIVEND(d.id || '::' || d.dividend_date || '::' || d.amount, '|') as dividends
+                FROM stocks s
+                LEFT JOIN dividends d ON s.id = d.stock_id
+                GROUP BY s.id
+                ORDER BY s.created_at DESC
+            `);
+
+            if (results.length === 0 || results[0].values.length === 0) {
+                renderStockList([]);
+                updateSummary([]);
+                return;
+            }
+
+            const stocks = results[0].values.map(row => {
+                const dividendsStr = row[7];
+                let dividends = [];
+                if (dividendsStr) {
+                    dividends = dividendsStr.split('|').map(d => {
+                        const [id, date, amount] = d.split('::');
+                        return { id: parseInt(id), date, amount: parseFloat(amount) };
+                    });
+                }
+
+                return {
+                    id: row[0],
+                    accountName: row[1],
+                    stockName: row[2],
+                    purchasePrice: row[3],
+                    shares: row[4],
+                    totalAmount: row[5],
+                    dividendCycle: row[6],
+                    dividends: dividends
+                };
+            });
+
+            renderStockList(stocks);
+            updateSummary(stocks);
+        }
+
+        function formatNumber(num) {
+            return new Intl.NumberFormat('ko-KR').format(num);
+        }
+
+        function getCycleLabel(cycle) {
+            const labels = {
+                monthly: '월간',
+                quarterly: '분기',
+                semiannual: '반기',
+                annual: '연간'
+            };
+            return labels[cycle] || cycle;
+        }
+
+        function getMonthlyMultiplier(cycle) {
+            const multipliers = {
+                monthly: 1,
+                quarterly: 3,
+                semiannual: 6,
+                annual: 12
+            };
+            return multipliers[cycle] || 1;
+        }
+
+        function calculateAnnualDividend(stock) {
+            if (!stock.dividends || stock.dividends.length === 0) return 0;
+            const totalDividend = stock.dividends.reduce((sum, d) => sum + d.amount, 0);
+            const annualDividend = totalDividend * (12 / getMonthlyMultiplier(stock.dividendCycle));
+            return annualDividend;
+        }
+
+        function calculateDividendPerShare(stock) {
+            if (!stock.dividends || stock.dividends.length === 0 || stock.shares === 0) return 0;
+            const totalDividend = stock.dividends.reduce((sum, d) => sum + d.amount, 0);
+            return totalDividend / stock.shares;
+        }
+
+        function updateSummary(stocks) {
+            const totalInvestment = stocks.reduce((sum, s) => sum + s.totalAmount, 0);
+            
+            let totalAnnualDividend = 0;
+            stocks.forEach(stock => {
+                totalAnnualDividend += calculateAnnualDividend(stock);
+            });
+
+            const monthlyDividend = totalAnnualDividend / 12;
+            const avgDividendRate = totalInvestment > 0 ? (totalAnnualDividend / totalInvestment) * 100 : 0;
+
+            document.getElementById('totalInvestment').textContent = `₩${formatNumber(totalInvestment)}`;
+            document.getElementById('monthlyDividend').textContent = `₩${formatNumber(Math.round(monthlyDividend))}`;
+            document.getElementById('avgDividendRate').textContent = `${avgDividendRate.toFixed(2)}%`;
+        }
+
+        function renderStockList(stocks) {
+            const stockList = document.getElementById('stockList');
+            
+            if (stocks.length === 0) {
+                stockList.innerHTML = `
+                    <div class="empty-state">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                        </svg>
+                        <p>등록된 주식이 없습니다.<br>좌측에서 주식을 추가해주세요.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            stockList.innerHTML = stocks.map((stock, index) => {
+                const dividendPerShare = calculateDividendPerShare(stock);
+                const annualDividend = calculateAnnualDividend(stock);
+                const dividendRate = stock.totalAmount > 0 ? (annualDividend / stock.totalAmount) * 100 : 0;
+
+                return `
+                    <div class="stock-item" style="--index: ${index}">
+                        <div class="stock-header">
+                            <span class="stock-name">${stock.stockName}</span>
+                            <span class="stock-account">${stock.accountName}</span>
+                        </div>
+                        <div class="stock-details">
+                            <div class="stock-detail">
+                                <div class="label">매수가</div>
+                                <div class="value">₩${formatNumber(stock.purchasePrice)}</div>
+                            </div>
+                            <div class="stock-detail">
+                                <div class="label">주식수</div>
+                                <div class="value">${formatNumber(stock.shares)}</div>
+                            </div>
+                            <div class="stock-detail">
+                                <div class="label">총액</div>
+                                <div class="value accent">₩${formatNumber(stock.totalAmount)}</div>
+                            </div>
+                            <div class="stock-detail">
+                                <div class="label">배당주기</div>
+                                <div class="value">${getCycleLabel(stock.dividendCycle)}</div>
+                            </div>
+                            <div class="stock-detail">
+                                <div class="label">주당 배당</div>
+                                <div class="value green">₩${formatNumber(Math.round(dividendPerShare))}</div>
+                            </div>
+                            <div class="stock-detail">
+                                <div class="label">배당률</div>
+                                <div class="value green">${dividendRate.toFixed(2)}%</div>
+                            </div>
+                        </div>
+                        <div class="stock-actions">
+                            <button class="btn btn-secondary" onclick="openPurchaseModal(${stock.id})">추가매수</button>
+                            <button class="btn btn-add" onclick="openDividendModal(${stock.id})">배당입력</button>
+                            <button class="btn btn-danger" onclick="deleteStock(${stock.id})">삭제</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function getStockById(stockId) {
+            const results = db.exec(`SELECT * FROM stocks WHERE id = ${stockId}`);
+            if (results.length === 0 || results[0].values.length === 0) return null;
+
+            const row = results[0].values[0];
+            const dividendResults = db.exec(`SELECT * FROM dividends WHERE stock_id = ${stockId}`);
+            let dividends = [];
+            if (dividendResults.length > 0) {
+                dividends = dividendResults[0].values.map(d => ({
+                    id: d[0],
+                    date: d[2],
+                    amount: d[3]
+                }));
+            }
+
+            return {
+                id: row[0],
+                accountName: row[1],
+                stockName: row[2],
+                purchasePrice: row[3],
+                shares: row[4],
+                totalAmount: row[5],
+                dividendCycle: row[6],
+                dividends: dividends
+            };
+        }
+
+        function openPurchaseModal(stockId) {
+            const stock = getStockById(stockId);
+            if (!stock) return;
+
+            document.getElementById('editStockId').value = stockId;
+            document.getElementById('editStockName').value = stock.stockName;
+            document.getElementById('additionalPrice').value = '';
+            document.getElementById('additionalShares').value = '';
+            document.getElementById('newTotalAmount').value = '';
+
+            document.getElementById('purchaseModal').classList.add('active');
+        }
+
+        function openDividendModal(stockId) {
+            const stock = getStockById(stockId);
+            if (!stock) return;
+
+            document.getElementById('dividendStockId').value = stockId;
+            document.getElementById('dividendStockName').value = stock.stockName;
+            document.getElementById('dividendDate').value = '';
+            document.getElementById('dividendAmount').value = '';
+
+            document.getElementById('dividendModal').classList.add('active');
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.remove('active');
+        }
+
+        document.getElementById('stockForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            const accountName = document.getElementById('accountName').value;
+            const stockName = document.getElementById('stockName').value;
+            const purchasePrice = parseInt(document.getElementById('purchasePrice').value);
+            const shares = parseInt(document.getElementById('shares').value);
+            const totalAmount = purchasePrice * shares;
+            const dividendCycle = document.getElementById('dividendCycle').value;
+
+            db.run(`
+                INSERT INTO stocks (account_name, stock_name, purchase_price, shares, total_amount, dividend_cycle)
+                VALUES (?, ?, ?, ?, ?, ?)
+            `, [accountName, stockName, purchasePrice, shares, totalAmount, dividendCycle]);
+
+            saveDatabase();
+            loadStocks();
+
+            this.reset();
+            document.getElementById('totalAmount').value = '';
+        });
+
+        document.getElementById('purchaseForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            const stockId = parseInt(document.getElementById('editStockId').value);
+            const additionalPrice = parseInt(document.getElementById('additionalPrice').value);
+            const additionalShares = parseInt(document.getElementById('additionalShares').value);
+
+            const stock = getStockById(stockId);
+            if (!stock) return;
+
+            const newShares = stock.shares + additionalShares;
+            const newTotalAmount = stock.totalAmount + (additionalPrice * additionalShares);
+            const newPurchasePrice = Math.round(newTotalAmount / newShares);
+
+            db.run(`
+                UPDATE stocks 
+                SET shares = ?, total_amount = ?, purchase_price = ?
+                WHERE id = ?
+            `, [newShares, newTotalAmount, newPurchasePrice, stockId]);
+
+            saveDatabase();
+            loadStocks();
+            closeModal('purchaseModal');
+        });
+
+        document.getElementById('dividendForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            const stockId = parseInt(document.getElementById('dividendStockId').value);
+            const date = document.getElementById('dividendDate').value;
+            const amount = parseInt(document.getElementById('dividendAmount').value);
+
+            db.run(`
+                INSERT INTO dividends (stock_id, dividend_date, amount)
+                VALUES (?, ?, ?)
+            `, [stockId, date, amount]);
+
+            saveDatabase();
+            loadStocks();
+            closeModal('dividendModal');
+        });
+
+        function deleteStock(stockId) {
+            if (confirm('정말 삭제하시겠습니까?')) {
+                db.run(`DELETE FROM dividends WHERE stock_id = ?`, [stockId]);
+                db.run(`DELETE FROM stocks WHERE id = ?`, [stockId]);
+                saveDatabase();
+                loadStocks();
+            }
+        }
+
+        document.getElementById('purchasePrice').addEventListener('input', calculateTotal);
+        document.getElementById('shares').addEventListener('input', calculateTotal);
+
+        function calculateTotal() {
+            const price = parseInt(document.getElementById('purchasePrice').value) || 0;
+            const shares = parseInt(document.getElementById('shares').value) || 0;
+            const total = price * shares;
+            document.getElementById('totalAmount').value = total > 0 ? `₩${formatNumber(total)}` : '';
+        }
+
+        document.getElementById('additionalPrice').addEventListener('input', calculateNewTotal);
+        document.getElementById('additionalShares').addEventListener('input', calculateNewTotal);
+
+        function calculateNewTotal() {
+            const stockId = parseInt(document.getElementById('editStockId').value);
+            const stock = getStockById(stockId);
+            if (!stock) return;
+
+            const additionalPrice = parseInt(document.getElementById('additionalPrice').value) || 0;
+            const additionalShares = parseInt(document.getElementById('additionalShares').value) || 0;
+
+            const newTotal = stock.totalAmount + (additionalPrice * additionalShares);
+            document.getElementById('newTotalAmount').value = newTotal > 0 ? `₩${formatNumber(newTotal)}` : '';
+        }
+
+        document.querySelectorAll('.modal-overlay').forEach(overlay => {
+            overlay.addEventListener('click', function(e) {
+                if (e.target === this) {
+                    this.classList.remove('active');
+                }
+            });
+        });
+
+        function exportDatabase() {
+            const data = db.export();
+            const blob = new Blob([data], { type: 'application/octet-stream' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `dividend_tracker_${new Date().toISOString().split('T')[0]}.db`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function importDatabase(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    db = new SQL.Database(data);
+                    saveDatabase();
+                    loadStocks();
+                    alert('데이터베이스를 성공적으로 가져왔습니다.');
+                } catch (error) {
+                    alert('파일 가져오기 실패: ' + error.message);
+                }
+            };
+            reader.readAsArrayBuffer(file);
+            event.target.value = '';
+        }
+
+        initDatabase();
+    </script>
+</body>
+</html>
