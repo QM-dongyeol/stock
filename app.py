@@ -288,6 +288,8 @@ def refresh_all_stock_prices():
 
     return jsonify({'message': '현재가 갱신 완료', 'updated': updated})
 
+
+init_db()
+
 if __name__ == '__main__':
-    init_db()
     app.run(debug=True, port=5000)
