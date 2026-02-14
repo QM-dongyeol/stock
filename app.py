@@ -2,6 +2,7 @@ from flask import Flask, render_template, request, jsonify
 import os
 import sqlite3
 import requests
+import tempfile
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "").strip()
 USE_POSTGRES = DATABASE_URL.startswith("postgresql://") or DATABASE_URL.startswith("postgres://")
@@ -331,7 +332,120 @@ def delete_dividend(dividend_id):
 @app.route("/api/export")
 def export_db():
     if USE_POSTGRES:
-        return jsonify({"message": "Postgres 사용 중에는 DB 파일 내보내기를 지원하지 않습니다."}), 400
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT id, account_name, stock_name, stock_code, purchase_price, shares,
+                   total_amount, dividend_cycle, current_price, sell_amount, is_sold, created_at
+            FROM stocks
+            ORDER BY id
+            """
+        )
+        stocks = cursor.fetchall()
+        cursor.execute(
+            """
+            SELECT id, stock_id, dividend_date, amount, created_at
+            FROM dividends
+            ORDER BY id
+            """
+        )
+        dividends = cursor.fetchall()
+        conn.close()
+
+        tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".db")
+        tmp_path = tmp_file.name
+        tmp_file.close()
+
+        try:
+            sconn = sqlite3.connect(tmp_path)
+            sc = sconn.cursor()
+            sc.execute(
+                """
+                CREATE TABLE IF NOT EXISTS stocks (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    account_name TEXT NOT NULL,
+                    stock_name TEXT NOT NULL,
+                    stock_code TEXT,
+                    purchase_price REAL NOT NULL,
+                    shares INTEGER NOT NULL,
+                    total_amount REAL NOT NULL,
+                    dividend_cycle TEXT NOT NULL,
+                    current_price REAL DEFAULT 0,
+                    sell_amount REAL DEFAULT 0,
+                    is_sold INTEGER DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
+            sc.execute(
+                """
+                CREATE TABLE IF NOT EXISTS dividends (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    stock_id INTEGER NOT NULL,
+                    dividend_date TEXT NOT NULL,
+                    amount REAL NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (stock_id) REFERENCES stocks(id) ON DELETE CASCADE
+                )
+                """
+            )
+
+            for row in stocks:
+                sc.execute(
+                    """
+                    INSERT INTO stocks (
+                        id, account_name, stock_name, stock_code, purchase_price, shares,
+                        total_amount, dividend_cycle, current_price, sell_amount, is_sold, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        row["id"],
+                        row["account_name"],
+                        row["stock_name"],
+                        row["stock_code"],
+                        row["purchase_price"],
+                        row["shares"],
+                        row["total_amount"],
+                        row["dividend_cycle"],
+                        row["current_price"] or 0,
+                        row["sell_amount"] or 0,
+                        1 if row["is_sold"] else 0,
+                        str(row["created_at"]) if row["created_at"] is not None else None,
+                    ),
+                )
+
+            for row in dividends:
+                sc.execute(
+                    """
+                    INSERT INTO dividends (id, stock_id, dividend_date, amount, created_at)
+                    VALUES (?, ?, ?, ?, ?)
+                    """,
+                    (
+                        row["id"],
+                        row["stock_id"],
+                        row["dividend_date"],
+                        row["amount"],
+                        str(row["created_at"]) if row["created_at"] is not None else None,
+                    ),
+                )
+
+            sconn.commit()
+            sconn.close()
+
+            with open(tmp_path, "rb") as f:
+                data = f.read()
+
+            return data, 200, {
+                "Content-Type": "application/octet-stream",
+                "Content-Disposition": "attachment; filename=stocks.db",
+            }
+        finally:
+            try:
+                os.remove(tmp_path)
+            except OSError:
+                pass
+
     if os.path.exists(DB_PATH):
         with open(DB_PATH, "rb") as f:
             return f.read(), 200, {
@@ -344,7 +458,100 @@ def export_db():
 @app.route("/api/import", methods=["POST"])
 def import_db():
     if USE_POSTGRES:
-        return jsonify({"message": "Postgres 사용 중에는 DB 파일 가져오기를 지원하지 않습니다."}), 400
+        file = request.files.get("file")
+        if file is None:
+            return jsonify({"message": "파일이 없습니다."}), 400
+
+        tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".db")
+        tmp_path = tmp_file.name
+        tmp_file.close()
+        file.save(tmp_path)
+
+        try:
+            sconn = sqlite3.connect(tmp_path)
+            sconn.row_factory = sqlite3.Row
+            sc = sconn.cursor()
+
+            sc.execute(
+                """
+                SELECT id, account_name, stock_name, stock_code, purchase_price, shares,
+                       total_amount, dividend_cycle, current_price, sell_amount, is_sold, created_at
+                FROM stocks
+                ORDER BY id
+                """
+            )
+            sqlite_stocks = sc.fetchall()
+
+            sc.execute(
+                """
+                SELECT id, stock_id, dividend_date, amount, created_at
+                FROM dividends
+                ORDER BY id
+                """
+            )
+            sqlite_dividends = sc.fetchall()
+            sconn.close()
+
+            conn = get_db()
+            cursor = conn.cursor()
+
+            cursor.execute("DELETE FROM dividends")
+            cursor.execute("DELETE FROM stocks")
+
+            id_map = {}
+            for row in sqlite_stocks:
+                cursor.execute(
+                    """
+                    INSERT INTO stocks (
+                        account_name, stock_name, stock_code, purchase_price, shares,
+                        total_amount, dividend_cycle, current_price, sell_amount, is_sold, created_at
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    RETURNING id
+                    """,
+                    (
+                        row["account_name"],
+                        row["stock_name"],
+                        row["stock_code"] if "stock_code" in row.keys() else "",
+                        row["purchase_price"],
+                        row["shares"],
+                        row["total_amount"],
+                        row["dividend_cycle"],
+                        row["current_price"] if "current_price" in row.keys() else 0,
+                        row["sell_amount"] if "sell_amount" in row.keys() else 0,
+                        bool(row["is_sold"]) if "is_sold" in row.keys() else False,
+                        row["created_at"] if "created_at" in row.keys() else None,
+                    ),
+                )
+                new_id = cursor.fetchone()["id"]
+                id_map[row["id"]] = new_id
+
+            for row in sqlite_dividends:
+                mapped_stock_id = id_map.get(row["stock_id"])
+                if mapped_stock_id is None:
+                    continue
+                cursor.execute(
+                    """
+                    INSERT INTO dividends (stock_id, dividend_date, amount, created_at)
+                    VALUES (%s, %s, %s, %s)
+                    """,
+                    (
+                        mapped_stock_id,
+                        row["dividend_date"],
+                        row["amount"],
+                        row["created_at"] if "created_at" in row.keys() else None,
+                    ),
+                )
+
+            conn.commit()
+            conn.close()
+
+            return jsonify({"message": "데이터베이스를 가져왔습니다."})
+        finally:
+            try:
+                os.remove(tmp_path)
+            except OSError:
+                pass
+
     file = request.files["file"]
     file.save(DB_PATH)
     return jsonify({"message": "데이터베이스를 가져왔습니다."})
