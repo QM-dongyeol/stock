@@ -1151,6 +1151,10 @@
                 <div class="value dividend" id="totalDividendSum">₩0</div>
             </div>
             <div class="summary-card">
+                <div class="label">월 평균 배당</div>
+                <div class="value dividend" id="monthlyAverageDividend">₩0</div>
+            </div>
+            <div class="summary-card">
                 <div class="label">주식수익금</div>
                 <div class="value profit" id="stockProfitSum">₩0</div>
             </div>
@@ -1576,9 +1580,13 @@
             
             let totalDividendSum = 0;
             let stockProfitSum = 0;
+            const dividendDates = [];
             stocks.forEach(stock => {
                 if (stock.dividends) {
-                    totalDividendSum += stock.dividends.reduce((sum, d) => sum + d.amount, 0);
+                    totalDividendSum += stock.dividends.reduce((sum, d) => {
+                        if (d.date) dividendDates.push(new Date(d.date));
+                        return sum + d.amount;
+                    }, 0);
                 }
 
                 if (stock.currentPrice && stock.shares) {
@@ -1586,11 +1594,20 @@
                 }
             });
 
+            let monthlyAverageDividend = 0;
+            if (dividendDates.length > 0) {
+                const minDate = new Date(Math.min(...dividendDates));
+                const maxDate = new Date(Math.max(...dividendDates));
+                const monthSpan = ((maxDate.getFullYear() - minDate.getFullYear()) * 12) + (maxDate.getMonth() - minDate.getMonth()) + 1;
+                monthlyAverageDividend = monthSpan > 0 ? (totalDividendSum / monthSpan) : totalDividendSum;
+            }
+
             const totalProfitSum = stockProfitSum + totalDividendSum;
             const totalProfitRate = totalInvestment > 0 ? (totalProfitSum / totalInvestment) * 100 : 0;
 
             document.getElementById('totalInvestment').textContent = `₩${formatNumber(totalInvestment)}`;
             document.getElementById('totalDividendSum').textContent = `₩${formatNumber(totalDividendSum)}`;
+            document.getElementById('monthlyAverageDividend').textContent = `₩${formatNumber(Math.round(monthlyAverageDividend))}`;
             document.getElementById('stockProfitSum').textContent = `${stockProfitSum >= 0 ? '+' : '-'}₩${formatNumber(Math.round(Math.abs(stockProfitSum)))}`;
             document.getElementById('totalProfitSum').textContent = `${totalProfitSum >= 0 ? '+' : '-'}₩${formatNumber(Math.round(Math.abs(totalProfitSum)))}`;
             document.getElementById('totalProfitRate').textContent = `${totalProfitRate.toFixed(2)}%`;
