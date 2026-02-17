@@ -102,8 +102,8 @@
 
         .summary-bar {
             display: grid;
-            grid-template-columns: repeat(5, 1fr);
-            gap: 16px;
+            grid-template-columns: repeat(6, minmax(0, 1fr));
+            gap: 10px;
             margin-bottom: 32px;
             animation: fadeInUp 0.6s ease-out 0.2s both;
         }
@@ -112,7 +112,7 @@
             background: var(--card);
             border: 1px solid var(--border);
             border-radius: 12px;
-            padding: 20px;
+            padding: 14px 10px;
             text-align: center;
             transition: transform 0.3s ease, box-shadow 0.3s ease;
         }
@@ -123,15 +123,15 @@
         }
 
         .summary-card .label {
-            font-size: 13px;
+            font-size: 11px;
             color: var(--subtext);
-            margin-bottom: 8px;
+            margin-bottom: 6px;
             text-transform: uppercase;
-            letter-spacing: 1px;
+            letter-spacing: 0.4px;
         }
 
         .summary-card .value {
-            font-size: 24px;
+            font-size: 19px;
             font-weight: 700;
             color: var(--accent);
         }
@@ -164,7 +164,7 @@
                 grid-template-columns: 1fr;
             }
             .summary-bar {
-                grid-template-columns: repeat(2, 1fr);
+                grid-template-columns: repeat(3, 1fr);
             }
         }
 
