@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>로그인 - Stock Dividend Manager</title>
+    <style>
+        :root {
+            --bg: #0d1117;
+            --card: #161b22;
+            --border: #30363d;
+            --text: #e6edf3;
+            --subtext: #8b949e;
+            --primary: #58a6ff;
+            --danger: #f85149;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: grid;
+            place-items: center;
+            background: radial-gradient(circle at 20% 20%, rgba(88, 166, 255, 0.15), transparent 40%), var(--bg);
+            color: var(--text);
+            font-family: "Segoe UI", "Noto Sans KR", sans-serif;
+            padding: 16px;
+        }
+
+        .card {
+            width: 100%;
+            max-width: 360px;
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 22px;
+        }
+
+        h1 {
+            margin: 0 0 16px;
+            font-size: 20px;
+        }
+
+        label {
+            display: block;
+            margin: 10px 0 6px;
+            font-size: 13px;
+            color: var(--subtext);
+        }
+
+        input {
+            width: 100%;
+            border: 1px solid var(--border);
+            background: #0f141b;
+            color: var(--text);
+            border-radius: 8px;
+            padding: 10px 12px;
+            font-size: 14px;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        button {
+            width: 100%;
+            border: none;
+            border-radius: 8px;
+            padding: 10px 12px;
+            margin-top: 14px;
+            background: linear-gradient(135deg, #1f6feb, #58a6ff);
+            color: white;
+            font-size: 14px;
+            cursor: pointer;
+        }
+
+        .error {
+            margin: 0 0 10px;
+            color: var(--danger);
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+    <form class="card" method="post" action="/login">
+        <h1>로그인</h1>
+        {% if error %}
+        <p class="error">{{ error }}</p>
+        {% endif %}
+        <label for="email">이메일</label>
+        <input id="email" name="email" type="email" required autocomplete="username">
+
+        <label for="password">비밀번호</label>
+        <input id="password" name="password" type="password" required autocomplete="current-password">
+
+        <button type="submit">로그인</button>
+    </form>
+</body>
+</html>

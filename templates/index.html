@@ -502,6 +502,17 @@
             color: var(--primary);
         }
 
+        .btn-price-danger {
+            border-color: rgba(248, 81, 73, 0.45);
+            color: var(--danger);
+        }
+
+        .btn-price-danger:hover {
+            border-color: var(--danger);
+            color: #fff;
+            background: rgba(248, 81, 73, 0.85);
+        }
+
         .btn-inline-refresh {
             padding: 1px 6px;
             line-height: 1.1;
@@ -1108,6 +1119,12 @@
 <body>
     <div class="container">
         <div class="db-controls">
+            <button class="btn-db" id="settingsButton" onclick="openSettingsModal()" title="설정" style="display:none;">
+                설정
+            </button>
+            <button class="btn-db" onclick="location.href='/logout'" title="로그아웃">
+                로그아웃
+            </button>
             <button class="btn-db success" onclick="refreshPricesOnly()" title="현재가 갱신">
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h5M20 20v-5h-5M5.64 18.36A9 9 0 0118.36 5.64M18.36 18.36A9 9 0 015.64 5.64"></path>
@@ -1487,12 +1504,185 @@
         </div>
     </div>
 
+    <div class="modal-overlay" id="settingsModal">
+        <div class="modal" style="max-width: 700px;">
+            <h3 class="modal-title">설정 - 사용자 관리</h3>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>이메일</label>
+                    <input type="email" id="newUserEmail" placeholder="user@example.com">
+                </div>
+                <div class="form-group">
+                    <label>비밀번호</label>
+                    <input type="password" id="newUserPassword" placeholder="초기 비밀번호">
+                </div>
+            </div>
+            <div class="form-group" style="display:flex;align-items:center;gap:8px;">
+                <input type="checkbox" id="newUserIsAdmin" style="width:auto;">
+                <label for="newUserIsAdmin" style="margin:0;">관리자 권한</label>
+                <button type="button" class="btn btn-primary" style="margin-left:auto;" onclick="createUser()">사용자 추가</button>
+            </div>
+            <div class="table-container" style="max-height: 280px;">
+                <table class="dividend-table">
+                    <thead>
+                        <tr>
+                            <th>이메일</th>
+                            <th>관리자</th>
+                            <th>활성</th>
+                            <th>비밀번호</th>
+                            <th>작업</th>
+                        </tr>
+                    </thead>
+                    <tbody id="adminUserTableBody"></tbody>
+                </table>
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-cancel" onclick="closeModal('settingsModal')">닫기</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         let stocks = [];
         let dividendChart = null;
         let waterfallChart = null;
         let selectedWaterfallStockId = 'all';
         let selectedDividendStockId = 'all';
+        let currentUser = null;
+
+        async function loadMe() {
+            const response = await fetch('/api/me');
+            if (response.status === 401) {
+                location.href = '/login';
+                return;
+            }
+            if (!response.ok) {
+                throw new Error('사용자 정보 조회 실패');
+            }
+            currentUser = await response.json();
+            const settingsButton = document.getElementById('settingsButton');
+            if (settingsButton) {
+                settingsButton.style.display = currentUser.isAdmin ? 'inline-flex' : 'none';
+            }
+        }
+
+        async function openSettingsModal() {
+            if (!currentUser || !currentUser.isAdmin) return;
+            await loadAdminUsers();
+            document.getElementById('settingsModal').classList.add('active');
+        }
+
+        async function loadAdminUsers() {
+            const response = await fetch('/api/admin/users');
+            if (!response.ok) {
+                alert('사용자 목록 조회 실패');
+                return;
+            }
+            const users = await response.json();
+            const tbody = document.getElementById('adminUserTableBody');
+            if (!tbody) return;
+
+            tbody.innerHTML = users.map(user => `
+                <tr>
+                    <td>${user.email}</td>
+                    <td><input type="checkbox" ${user.isAdmin ? 'checked' : ''} onchange="toggleUserAdmin(${user.id}, this.checked)"></td>
+                    <td><input type="checkbox" ${user.isActive ? 'checked' : ''} onchange="toggleUserActive(${user.id}, this.checked)"></td>
+                    <td><input type="password" id="pw-${user.id}" placeholder="변경할 비밀번호" style="padding:6px 8px;font-size:12px;"></td>
+                    <td>
+                        <button class="btn-price" onclick="resetUserPassword(${user.id})">저장</button>
+                        <button class="btn-price btn-price-danger" style="margin-left:6px;" onclick="deleteUser(${user.id}, '${user.email.replace(/'/g, "\\'")}')">삭제</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        async function createUser() {
+            const email = document.getElementById('newUserEmail').value.trim().toLowerCase();
+            const password = document.getElementById('newUserPassword').value;
+            const isAdmin = document.getElementById('newUserIsAdmin').checked;
+
+            if (!email || !password) {
+                alert('이메일과 비밀번호를 입력해주세요.');
+                return;
+            }
+
+            const response = await fetch('/api/admin/users', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password, isAdmin })
+            });
+            const data = await response.json();
+            if (!response.ok) {
+                alert(data.message || '사용자 생성 실패');
+                return;
+            }
+
+            document.getElementById('newUserEmail').value = '';
+            document.getElementById('newUserPassword').value = '';
+            document.getElementById('newUserIsAdmin').checked = false;
+            await loadAdminUsers();
+            alert('사용자가 추가되었습니다.');
+        }
+
+        async function toggleUserActive(userId, isActive) {
+            const response = await fetch(`/api/admin/users/${userId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ isActive })
+            });
+            if (!response.ok) {
+                alert('상태 변경 실패');
+            }
+            await loadAdminUsers();
+        }
+
+        async function toggleUserAdmin(userId, isAdmin) {
+            const response = await fetch(`/api/admin/users/${userId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ isAdmin })
+            });
+            if (!response.ok) {
+                alert('권한 변경 실패');
+            }
+            await loadAdminUsers();
+        }
+
+        async function resetUserPassword(userId) {
+            const field = document.getElementById(`pw-${userId}`);
+            if (!field || !field.value) {
+                alert('변경할 비밀번호를 입력해주세요.');
+                return;
+            }
+            const response = await fetch(`/api/admin/users/${userId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ password: field.value })
+            });
+            if (!response.ok) {
+                alert('비밀번호 변경 실패');
+                return;
+            }
+            field.value = '';
+            alert('비밀번호가 변경되었습니다.');
+        }
+
+        async function deleteUser(userId, email) {
+            if (!confirm(`${email} 계정을 삭제하시겠습니까?`)) {
+                return;
+            }
+
+            const response = await fetch(`/api/admin/users/${userId}`, {
+                method: 'DELETE'
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                alert(data.message || '계정 삭제 실패');
+                return;
+            }
+            alert('계정이 삭제되었습니다.');
+            await loadAdminUsers();
+        }
 
         async function fetchPrice(stockId, stockCode) {
             if (!stockCode) {
@@ -2579,7 +2769,10 @@
             event.target.value = '';
         }
 
-        loadStocks();
+        (async function initPage() {
+            await loadMe();
+            await loadStocks();
+        })();
     </script>
 </body>
 </html>
