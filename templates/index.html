@@ -413,7 +413,20 @@
             table-layout: fixed;
             font-size: 11px;
             margin-bottom: 8px;
-            min-width: 980px;
+            min-width: 0;
+        }
+
+        .stock-table-wrap {
+            width: 100%;
+            overflow-x: auto;
+        }
+
+        .stock-table col {
+            width: calc(100% / 12);
+        }
+
+        .stock-mobile-summary {
+            display: none;
         }
 
         .stock-table th,
@@ -421,7 +434,6 @@
             padding: 4px 6px;
             text-align: center;
             border-bottom: 1px solid var(--border);
-            width: 8.33%;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
@@ -843,6 +855,127 @@
         @media (max-width: 768px) {
             .main-grid {
                 grid-template-columns: 1fr;
+            }
+
+            .container {
+                padding: 14px;
+            }
+
+            .summary-bar {
+                grid-template-columns: 1fr 1fr;
+                gap: 10px;
+            }
+
+            .summary-card {
+                padding: 12px;
+            }
+
+            .summary-card .label {
+                font-size: 11px;
+                letter-spacing: 0.3px;
+            }
+
+            .summary-card .value {
+                font-size: 18px;
+            }
+
+            .card {
+                padding: 14px;
+            }
+
+            .card-title {
+                font-size: 16px;
+                margin-bottom: 12px;
+            }
+
+            .db-controls {
+                gap: 6px;
+                flex-wrap: wrap;
+            }
+
+            .btn-db {
+                padding: 7px 10px;
+                font-size: 11px;
+            }
+
+            .dividend-grid {
+                grid-template-columns: 1fr;
+                gap: 14px;
+            }
+
+            .chart-container,
+            .waterfall-container {
+                height: 220px;
+            }
+
+            .stock-item {
+                padding: 10px;
+                border-radius: 10px;
+            }
+
+            .stock-header {
+                margin-bottom: 10px;
+            }
+
+            .stock-name {
+                font-size: 14px;
+            }
+
+            .stock-account {
+                font-size: 10px;
+            }
+
+            .stock-table {
+                display: none;
+            }
+
+            .stock-mobile-summary {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 8px;
+                margin-bottom: 10px;
+            }
+
+            .stock-mobile-summary .cell {
+                background: rgba(255, 255, 255, 0.02);
+                border: 1px solid var(--border);
+                border-radius: 8px;
+                padding: 8px;
+            }
+
+            .stock-mobile-summary .k {
+                display: block;
+                font-size: 10px;
+                color: var(--subtext);
+                margin-bottom: 3px;
+            }
+
+            .stock-mobile-summary .v {
+                display: block;
+                font-size: 12px;
+                font-weight: 600;
+                color: var(--text);
+            }
+
+            .stock-mobile-summary .v.accent {
+                color: var(--primary);
+            }
+
+            .stock-mobile-summary .v.green {
+                color: var(--accent);
+            }
+
+            .stock-mobile-summary .v.danger {
+                color: var(--danger);
+            }
+
+            .stock-actions {
+                gap: 5px;
+            }
+
+            .stock-actions .btn {
+                padding: 5px 8px;
+                font-size: 11px;
             }
         }
 
@@ -1669,40 +1802,55 @@
                             </span>
                             <span class="stock-account">${stock.accountName}</span>
                         </div>
-                        <table class="stock-table">
-                            <tr class="section-title">
-                                <th colspan="5">투자 정보</th>
-                                <th colspan="7">성과 정보</th>
-                            </tr>
-                            <tr>
-                                <th>매수가</th>
-                                <th>현재가</th>
-                                <th>주식수</th>
-                                <th>총액</th>
-                                <th>총 배당</th>
-                                <th>주당 배당수익금</th>
-                                <th>배당수익율</th>
-                                <th>주식수익률</th>
-                                <th>주식수익금</th>
-                                <th>총수익금</th>
-                                <th>총수익률</th>
-                                <th></th>
-                            </tr>
-                            <tr>
-                                <td>₩${formatNumber(stock.purchasePrice)}</td>
-                                <td class="${(stock.currentPrice || 0) > 0 ? (stock.currentPrice > stock.purchasePrice ? 'green' : 'danger') : ''}">${stock.currentPrice ? '₩' + formatNumber(stock.currentPrice) : '<button class="btn-price" onclick="fetchPrice(' + stock.id + ', \'' + stock.stockCode + '\')">조회</button>'}</td>
-                                <td>${formatNumber(stock.shares)}</td>
-                                <td class="accent">₩${formatNumber(stock.totalAmount)}</td>
-                                <td class="green">₩${formatNumber(totalDividend)}</td>
-                                <td class="green">₩${formatNumber(Math.round(perShareDividend))}</td>
-                                <td class="green">${dividendYield.toFixed(2)}%</td>
-                                <td class="${stock.currentPrice ? (stockProfitRate >= 0 ? 'green' : 'danger') : ''}">${stock.currentPrice ? stockProfitRate.toFixed(2) + '%' : '-'}</td>
-                                <td class="${stock.currentPrice ? (stockProfit >= 0 ? 'green' : 'danger') : ''}">${stock.currentPrice ? (stockProfit >= 0 ? '+' : '') + '₩' + formatNumber(Math.round(stockProfit)) : '-'}</td>
-                                <td class="${totalProfit >= 0 ? 'green-bold' : 'danger-bold'}">${totalProfit >= 0 ? '+' : ''}₩${formatNumber(Math.round(totalProfit))}</td>
-                                <td class="${totalProfitRate >= 0 ? 'green-bold' : 'danger-bold'}">${totalProfitRate.toFixed(2)}%</td>
-                                <td>${stock.currentPrice ? '<button class="btn-price" onclick="fetchPrice(' + stock.id + ', \'' + stock.stockCode + '\')">↻</button>' : ''}</td>
-                            </tr>
-                        </table>
+                        <div class="stock-mobile-summary">
+                            <div class="cell"><span class="k">매수가</span><span class="v">₩${formatNumber(stock.purchasePrice)}</span></div>
+                            <div class="cell"><span class="k">현재가</span><span class="v ${(stock.currentPrice || 0) > 0 ? (stock.currentPrice > stock.purchasePrice ? 'green' : 'danger') : ''}">${stock.currentPrice ? '₩' + formatNumber(stock.currentPrice) : '-'}</span></div>
+                            <div class="cell"><span class="k">주식수</span><span class="v">${formatNumber(stock.shares)}</span></div>
+                            <div class="cell"><span class="k">총액</span><span class="v accent">₩${formatNumber(stock.totalAmount)}</span></div>
+                            <div class="cell"><span class="k">총 배당</span><span class="v green">₩${formatNumber(totalDividend)}</span></div>
+                            <div class="cell"><span class="k">배당수익율</span><span class="v green">${dividendYield.toFixed(2)}%</span></div>
+                            <div class="cell"><span class="k">주식수익금</span><span class="v ${stockProfit >= 0 ? 'green' : 'danger'}">${stock.currentPrice ? (stockProfit >= 0 ? '+' : '') + '₩' + formatNumber(Math.round(stockProfit)) : '-'}</span></div>
+                            <div class="cell"><span class="k">총수익금/률</span><span class="v ${totalProfit >= 0 ? 'green' : 'danger'}">${totalProfit >= 0 ? '+' : ''}₩${formatNumber(Math.round(totalProfit))} (${totalProfitRate.toFixed(2)}%)</span></div>
+                        </div>
+                        <div class="stock-table-wrap">
+                            <table class="stock-table">
+                                <colgroup>
+                                    <col><col><col><col><col><col><col><col><col><col><col><col>
+                                </colgroup>
+                                <tr class="section-title">
+                                    <th colspan="5">투자 정보</th>
+                                    <th colspan="7">성과 정보</th>
+                                </tr>
+                                <tr>
+                                    <th>매수가</th>
+                                    <th>현재가</th>
+                                    <th>주식수</th>
+                                    <th>총액</th>
+                                    <th>총 배당</th>
+                                    <th>주당 배당수익금</th>
+                                    <th>배당수익율</th>
+                                    <th>주식수익률</th>
+                                    <th>주식수익금</th>
+                                    <th>총수익금</th>
+                                    <th>총수익률</th>
+                                    <th></th>
+                                </tr>
+                                <tr>
+                                    <td>₩${formatNumber(stock.purchasePrice)}</td>
+                                    <td class="${(stock.currentPrice || 0) > 0 ? (stock.currentPrice > stock.purchasePrice ? 'green' : 'danger') : ''}">${stock.currentPrice ? '₩' + formatNumber(stock.currentPrice) : '<button class="btn-price" onclick="fetchPrice(' + stock.id + ', \'' + stock.stockCode + '\')">조회</button>'}</td>
+                                    <td>${formatNumber(stock.shares)}</td>
+                                    <td class="accent">₩${formatNumber(stock.totalAmount)}</td>
+                                    <td class="green">₩${formatNumber(totalDividend)}</td>
+                                    <td class="green">₩${formatNumber(Math.round(perShareDividend))}</td>
+                                    <td class="green">${dividendYield.toFixed(2)}%</td>
+                                    <td class="${stock.currentPrice ? (stockProfitRate >= 0 ? 'green' : 'danger') : ''}">${stock.currentPrice ? stockProfitRate.toFixed(2) + '%' : '-'}</td>
+                                    <td class="${stock.currentPrice ? (stockProfit >= 0 ? 'green' : 'danger') : ''}">${stock.currentPrice ? (stockProfit >= 0 ? '+' : '') + '₩' + formatNumber(Math.round(stockProfit)) : '-'}</td>
+                                    <td class="${totalProfit >= 0 ? 'green-bold' : 'danger-bold'}">${totalProfit >= 0 ? '+' : ''}₩${formatNumber(Math.round(totalProfit))}</td>
+                                    <td class="${totalProfitRate >= 0 ? 'green-bold' : 'danger-bold'}">${totalProfitRate.toFixed(2)}%</td>
+                                    <td>${stock.currentPrice ? '<button class="btn-price" onclick="fetchPrice(' + stock.id + ', \'' + stock.stockCode + '\')">↻</button>' : ''}</td>
+                                </tr>
+                            </table>
+                        </div>
                         <div class="stock-actions">
                             ${!isSold ? `<button class="btn btn-primary-action" onclick="openDividendModal(${stock.id})">배당입력</button>` : ''}
                             <button class="btn btn-secondary" onclick="openStockChartModal(${stock.id})">그래프</button>
