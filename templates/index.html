@@ -362,6 +362,9 @@
         .stock-name {
             font-size: 13px;
             font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
         }
 
         .stock-account {
@@ -422,7 +425,7 @@
         }
 
         .stock-table col {
-            width: calc(100% / 12);
+            width: calc(100% / 11);
         }
 
         .stock-mobile-summary {
@@ -497,6 +500,11 @@
         .btn-price:hover {
             border-color: var(--primary);
             color: var(--primary);
+        }
+
+        .btn-inline-refresh {
+            padding: 1px 6px;
+            line-height: 1.1;
         }
 
         .stock-actions {
@@ -650,35 +658,6 @@
         .waterfall-container {
             position: relative;
             height: 280px;
-        }
-
-        .chip-row {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            margin-bottom: 14px;
-        }
-
-        .chip {
-            border: 1px solid var(--border);
-            background: var(--bg);
-            color: var(--subtext);
-            border-radius: 999px;
-            padding: 6px 12px;
-            font-size: 12px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-        }
-
-        .chip:hover {
-            border-color: var(--primary);
-            color: var(--text);
-        }
-
-        .chip.active {
-            border-color: var(--primary);
-            background: rgba(88, 166, 255, 0.16);
-            color: var(--primary);
         }
 
         .dividend-table {
@@ -993,8 +972,48 @@
             justify-content: space-between;
         }
 
+        .card-title.dividend-title {
+            justify-content: flex-start;
+            flex-wrap: wrap;
+        }
+
+        .card-title.waterfall-title {
+            justify-content: flex-start;
+            flex-wrap: wrap;
+            margin-bottom: 12px;
+        }
+
         .card-title.stock-title .btn-add-small {
             margin-left: auto;
+        }
+
+        .dividend-title-text {
+            margin-right: 6px;
+        }
+
+        .dividend-filter-select {
+            margin-left: auto;
+            min-width: 140px;
+            height: 30px;
+            padding: 4px 10px;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text);
+            font-size: 12px;
+        }
+
+        .dividend-filter-select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.15);
+        }
+
+        @media (max-width: 768px) {
+            .dividend-filter-select {
+                width: 100%;
+                margin-left: 0;
+            }
         }
 
         .card-title::before {
@@ -1160,8 +1179,11 @@
                     </div>
                 </div>
                 <div class="card">
-                    <h2 class="card-title">
-                        배당금 내역
+                    <h2 class="card-title dividend-title">
+                        <span class="dividend-title-text">배당금 내역</span>
+                        <select id="dividendStockFilter" class="dividend-filter-select" onchange="onDividendFilterChange()">
+                            <option value="all">전체</option>
+                        </select>
                     </h2>
                     <div class="table-container">
                         <table class="dividend-table">
@@ -1183,8 +1205,12 @@
         </div>
 
         <div class="card" style="margin-top: 24px;">
-            <h2 class="card-title">손익 워터폴 차트</h2>
-            <div class="chip-row" id="waterfallChips"></div>
+            <h2 class="card-title waterfall-title">
+                <span class="dividend-title-text">손익 워터폴 차트</span>
+                <select id="waterfallStockFilter" class="dividend-filter-select" onchange="onWaterfallFilterChange()">
+                    <option value="all">전체</option>
+                </select>
+            </h2>
             <div class="waterfall-container">
                 <canvas id="waterfallChart"></canvas>
             </div>
@@ -1462,6 +1488,7 @@
         let dividendChart = null;
         let waterfallChart = null;
         let selectedWaterfallStockId = 'all';
+        let selectedDividendStockId = 'all';
 
         async function fetchPrice(stockId, stockCode) {
             if (!stockCode) {
@@ -1499,8 +1526,9 @@
                 renderStockList();
                 updateSummary();
                 updateDividendChart();
-                renderWaterfallChips();
+                renderWaterfallFilterOptions();
                 updateWaterfallChart();
+                renderDividendFilterOptions();
                 updateDividendTable();
             } catch (error) {
                 console.error('데이터 로드 실패:', error);
@@ -1650,20 +1678,26 @@
             URL.revokeObjectURL(url);
         }
 
-        function renderWaterfallChips() {
-            const wrap = document.getElementById('waterfallChips');
-            if (!wrap) return;
+        function renderWaterfallFilterOptions() {
+            const select = document.getElementById('waterfallStockFilter');
+            if (!select) return;
 
-            const chips = ['<button class="chip ' + (selectedWaterfallStockId === 'all' ? 'active' : '') + '" onclick="selectWaterfallStock(\'all\')">전체</button>'];
-            stocks.forEach(stock => {
-                chips.push(`<button class="chip ${selectedWaterfallStockId === String(stock.id) ? 'active' : ''}" onclick="selectWaterfallStock('${stock.id}')">${stock.stockName}</button>`);
-            });
-            wrap.innerHTML = chips.join('');
+            const prev = selectedWaterfallStockId;
+            const stockOptions = stocks
+                .map(stock => ({ id: String(stock.id), name: stock.stockName }))
+                .sort((a, b) => a.name.localeCompare(b.name, 'ko-KR'));
+
+            select.innerHTML = '<option value="all">전체</option>' +
+                stockOptions.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+
+            const exists = stockOptions.some(s => s.id === prev);
+            selectedWaterfallStockId = exists ? prev : 'all';
+            select.value = selectedWaterfallStockId;
         }
 
-        function selectWaterfallStock(stockId) {
-            selectedWaterfallStockId = String(stockId);
-            renderWaterfallChips();
+        function onWaterfallFilterChange() {
+            const select = document.getElementById('waterfallStockFilter');
+            selectedWaterfallStockId = select ? select.value : 'all';
             updateWaterfallChart();
         }
 
@@ -1799,6 +1833,7 @@
                             <span class="stock-name">
                                 ${stock.stockName}
                                 ${isSold ? '<span class="sold-badge">매도완료</span>' : ''}
+                                ${stock.stockCode ? '<button class="btn-price btn-inline-refresh" onclick="fetchPrice(' + stock.id + ', \'' + stock.stockCode + '\')">↻</button>' : ''}
                             </span>
                             <span class="stock-account">${stock.accountName}</span>
                         </div>
@@ -1815,11 +1850,11 @@
                         <div class="stock-table-wrap">
                             <table class="stock-table">
                                 <colgroup>
-                                    <col><col><col><col><col><col><col><col><col><col><col><col>
+                                    <col><col><col><col><col><col><col><col><col><col><col>
                                 </colgroup>
                                 <tr class="section-title">
                                     <th colspan="5">투자 정보</th>
-                                    <th colspan="7">성과 정보</th>
+                                    <th colspan="6">성과 정보</th>
                                 </tr>
                                 <tr>
                                     <th>매수가</th>
@@ -1833,7 +1868,6 @@
                                     <th>주식수익금</th>
                                     <th>총수익금</th>
                                     <th>총수익률</th>
-                                    <th></th>
                                 </tr>
                                 <tr>
                                     <td>₩${formatNumber(stock.purchasePrice)}</td>
@@ -1847,7 +1881,6 @@
                                     <td class="${stock.currentPrice ? (stockProfit >= 0 ? 'green' : 'danger') : ''}">${stock.currentPrice ? (stockProfit >= 0 ? '+' : '') + '₩' + formatNumber(Math.round(stockProfit)) : '-'}</td>
                                     <td class="${totalProfit >= 0 ? 'green-bold' : 'danger-bold'}">${totalProfit >= 0 ? '+' : ''}₩${formatNumber(Math.round(totalProfit))}</td>
                                     <td class="${totalProfitRate >= 0 ? 'green-bold' : 'danger-bold'}">${totalProfitRate.toFixed(2)}%</td>
-                                    <td>${stock.currentPrice ? '<button class="btn-price" onclick="fetchPrice(' + stock.id + ', \'' + stock.stockCode + '\')">↻</button>' : ''}</td>
                                 </tr>
                             </table>
                         </div>
@@ -2347,6 +2380,29 @@
         let dividendSortKey = 'date';
         let dividendSortAsc = false;
 
+        function renderDividendFilterOptions() {
+            const select = document.getElementById('dividendStockFilter');
+            if (!select) return;
+
+            const prev = selectedDividendStockId;
+            const stockOptions = stocks
+                .map(stock => ({ id: String(stock.id), name: stock.stockName }))
+                .sort((a, b) => a.name.localeCompare(b.name, 'ko-KR'));
+
+            select.innerHTML = '<option value="all">전체</option>' +
+                stockOptions.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+
+            const exists = stockOptions.some(s => s.id === prev);
+            selectedDividendStockId = exists ? prev : 'all';
+            select.value = selectedDividendStockId;
+        }
+
+        function onDividendFilterChange() {
+            const select = document.getElementById('dividendStockFilter');
+            selectedDividendStockId = select ? select.value : 'all';
+            updateDividendTable();
+        }
+
         function updateDividendTable() {
             const tbody = document.getElementById('dividendTableBody');
             const allDividends = [];
@@ -2365,7 +2421,11 @@
                 }
             });
 
-            allDividends.sort((a, b) => {
+            const filteredDividends = selectedDividendStockId === 'all'
+                ? allDividends
+                : allDividends.filter(d => String(d.stockId) === selectedDividendStockId);
+
+            filteredDividends.sort((a, b) => {
                 let valA, valB;
                 if (dividendSortKey === 'date') {
                     valA = new Date(a.date);
@@ -2385,12 +2445,12 @@
 
             updateSortIndicators();
 
-            if (allDividends.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--subtext)">배당 내역이 없습니다</td></tr>';
+            if (filteredDividends.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--subtext)">${selectedDividendStockId === 'all' ? '배당 내역이 없습니다' : '선택한 주식의 배당 내역이 없습니다'}</td></tr>`;
                 return;
             }
 
-            tbody.innerHTML = allDividends.map(d => `
+            tbody.innerHTML = filteredDividends.map(d => `
                 <tr>
                     <td>${new Date(d.date).getMonth() + 1}월</td>
                     <td>${d.stockName}</td>
