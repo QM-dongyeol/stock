@@ -108,6 +108,36 @@
             animation: fadeInUp 0.6s ease-out 0.2s both;
         }
 
+        .account-filter-bar {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 14px;
+        }
+
+        .account-filter-label {
+            font-size: 12px;
+            color: var(--subtext);
+            white-space: nowrap;
+        }
+
+        .account-filter-select {
+            min-width: 180px;
+            height: 34px;
+            padding: 6px 10px;
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text);
+            font-size: 12px;
+        }
+
+        .account-filter-select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.15);
+        }
+
         .summary-card {
             background: var(--card);
             border: 1px solid var(--border);
@@ -533,6 +563,36 @@
             border: 1px solid rgba(63, 185, 80, 0.6);
             background: rgba(63, 185, 80, 0.18);
             color: var(--accent);
+        }
+
+        .stock-actions .btn-action-view {
+            border: 1px solid rgba(88, 166, 255, 0.5);
+            background: rgba(88, 166, 255, 0.16);
+            color: #79c0ff;
+        }
+
+        .stock-actions .btn-action-account {
+            border: 1px solid rgba(187, 128, 255, 0.5);
+            background: rgba(187, 128, 255, 0.16);
+            color: #c297ff;
+        }
+
+        .stock-actions .btn-action-buy {
+            border: 1px solid rgba(63, 185, 80, 0.6);
+            background: rgba(63, 185, 80, 0.2);
+            color: var(--accent);
+        }
+
+        .stock-actions .btn-action-sell {
+            border: 1px solid rgba(240, 136, 62, 0.6);
+            background: rgba(240, 136, 62, 0.2);
+            color: #ffb770;
+        }
+
+        .stock-actions .btn-action-delete {
+            border: 1px solid rgba(248, 81, 73, 0.65);
+            background: rgba(248, 81, 73, 0.14);
+            color: #ff7b72;
         }
 
         .sort-indicator {
@@ -1113,6 +1173,12 @@
             .add-card {
                 min-height: 100px;
             }
+            .account-filter-bar {
+                flex-wrap: wrap;
+            }
+            .account-filter-select {
+                width: 100%;
+            }
         }
     </style>
 </head>
@@ -1156,6 +1222,13 @@
                 가져오기
             </button>
             <input type="file" id="fileInput" accept=".db,.sqlite" onchange="importDatabase(event)">
+        </div>
+
+        <div class="account-filter-bar">
+            <span class="account-filter-label">계좌 필터</span>
+            <select id="accountFilter" class="account-filter-select" onchange="onAccountFilterChange()">
+                <option value="all">전체</option>
+            </select>
         </div>
 
         <div class="summary-bar">
@@ -1290,6 +1363,32 @@
                 <div class="modal-actions">
                     <button type="button" class="btn btn-cancel" onclick="closeModal('purchaseModal')">취소</button>
                     <button type="submit" class="btn btn-primary">확인</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="accountModal">
+        <div class="modal">
+            <h3 class="modal-title">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 11c0 1.657-1.343 3-3 3S6 12.657 6 11s1.343-3 3-3 3 1.343 3 3zm6 0c0 1.657-1.343 3-3 3s-3-1.343-3-3 1.343-3 3-3 3 1.343 3 3zM3 20h18"></path>
+                </svg>
+                계좌명 변경
+            </h3>
+            <form id="accountForm">
+                <input type="hidden" id="accountStockId">
+                <div class="form-group">
+                    <label>주식명</label>
+                    <input type="text" id="accountStockName" readonly>
+                </div>
+                <div class="form-group">
+                    <label>계좌명</label>
+                    <input type="text" id="accountNameEdit" placeholder="새 계좌명" required>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-cancel" onclick="closeModal('accountModal')">취소</button>
+                    <button type="submit" class="btn btn-primary">저장</button>
                 </div>
             </form>
         </div>
@@ -1544,11 +1643,13 @@
 
     <script>
         let stocks = [];
+        let allStocks = [];
         let dividendChart = null;
         let waterfallChart = null;
         let selectedWaterfallStockId = 'all';
         let selectedDividendStockId = 'all';
         let currentUser = null;
+        let selectedAccountName = 'all';
 
         async function loadMe() {
             const response = await fetch('/api/me');
@@ -1716,17 +1817,57 @@
             try {
                 await fetch('/api/stocks/refresh-prices', { method: 'POST' });
                 const response = await fetch('/api/stocks');
-                stocks = await response.json();
-                renderStockList();
-                updateSummary();
-                updateDividendChart();
-                renderWaterfallFilterOptions();
-                updateWaterfallChart();
-                renderDividendFilterOptions();
-                updateDividendTable();
+                allStocks = await response.json();
+                renderAccountFilterOptions();
+                applyAccountFilter();
             } catch (error) {
                 console.error('데이터 로드 실패:', error);
             }
+        }
+
+        function renderAccountFilterOptions() {
+            const select = document.getElementById('accountFilter');
+            if (!select) return;
+
+            const accounts = [...new Set(allStocks.map(stock => stock.accountName).filter(Boolean))]
+                .sort((a, b) => a.localeCompare(b, 'ko-KR'));
+
+            select.innerHTML = '';
+            const allOption = document.createElement('option');
+            allOption.value = 'all';
+            allOption.textContent = '전체';
+            select.appendChild(allOption);
+
+            accounts.forEach(name => {
+                const option = document.createElement('option');
+                option.value = name;
+                option.textContent = name;
+                select.appendChild(option);
+            });
+
+            const exists = accounts.includes(selectedAccountName);
+            selectedAccountName = exists ? selectedAccountName : 'all';
+            select.value = selectedAccountName;
+        }
+
+        function onAccountFilterChange() {
+            const select = document.getElementById('accountFilter');
+            selectedAccountName = select ? select.value : 'all';
+            applyAccountFilter();
+        }
+
+        function applyAccountFilter() {
+            stocks = selectedAccountName === 'all'
+                ? [...allStocks]
+                : allStocks.filter(stock => stock.accountName === selectedAccountName);
+
+            renderStockList();
+            updateSummary();
+            updateDividendChart();
+            renderWaterfallFilterOptions();
+            updateWaterfallChart();
+            renderDividendFilterOptions();
+            updateDividendTable();
         }
 
         function formatNumber(num) {
@@ -2093,13 +2234,14 @@
                         </div>
                         <div class="stock-actions">
                             ${!isSold ? `<button class="btn btn-primary-action" onclick="openDividendModal(${stock.id})">배당입력</button>` : ''}
-                            <button class="btn btn-secondary" onclick="openStockChartModal(${stock.id})">그래프</button>
-                            <button class="btn btn-secondary" onclick="openDividendHistoryModal(${stock.id})">배당내역</button>
+                            <button class="btn btn-action-view" onclick="openStockChartModal(${stock.id})">그래프</button>
+                            <button class="btn btn-action-view" onclick="openDividendHistoryModal(${stock.id})">배당내역</button>
+                            <button class="btn btn-action-account" onclick="openAccountModal(${stock.id})">계좌변경</button>
                             ${!isSold ? `
-                            <button class="btn btn-secondary" onclick="openPurchaseModal(${stock.id})">추가매수</button>
-                            <button class="btn btn-sell" onclick="openSellModal(${stock.id})">추가매도</button>
+                            <button class="btn btn-action-buy" onclick="openPurchaseModal(${stock.id})">추가매수</button>
+                            <button class="btn btn-action-sell" onclick="openSellModal(${stock.id})">추가매도</button>
                             ` : ''}
-                            <button class="btn btn-danger" onclick="deleteStock(${stock.id})">삭제</button>
+                            <button class="btn btn-action-delete" onclick="deleteStock(${stock.id})">삭제</button>
                         </div>
                     </div>
                 `;
@@ -2132,6 +2274,16 @@
             document.getElementById('newTotalAmount').value = '';
 
             document.getElementById('purchaseModal').classList.add('active');
+        }
+
+        function openAccountModal(stockId) {
+            const stock = getStockById(stockId);
+            if (!stock) return;
+
+            document.getElementById('accountStockId').value = stockId;
+            document.getElementById('accountStockName').value = stock.stockName;
+            document.getElementById('accountNameEdit').value = stock.accountName || '';
+            document.getElementById('accountModal').classList.add('active');
         }
 
         function openSellModal(stockId) {
@@ -2363,6 +2515,32 @@
 
             loadStocks();
             closeModal('purchaseModal');
+        });
+
+        document.getElementById('accountForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const stockId = parseInt(document.getElementById('accountStockId').value);
+            const accountName = document.getElementById('accountNameEdit').value.trim();
+
+            if (!accountName) {
+                alert('계좌명을 입력해주세요.');
+                return;
+            }
+
+            const response = await fetch(`/api/stocks/${stockId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ accountName })
+            });
+
+            if (!response.ok) {
+                alert('계좌명 변경 실패');
+                return;
+            }
+
+            closeModal('accountModal');
+            await loadStocks();
         });
 
         document.getElementById('sellForm').addEventListener('submit', async function(e) {

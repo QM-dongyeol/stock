@@ -646,6 +646,29 @@ def update_stock(stock_id):
     conn = get_db()
     cursor = conn.cursor()
 
+    if "accountName" in data:
+        if USE_POSTGRES:
+            cursor.execute(
+                """
+                UPDATE stocks
+                SET account_name = %s
+                WHERE id = %s AND user_id = %s
+                """,
+                (data["accountName"], stock_id, user_id),
+            )
+        else:
+            cursor.execute(
+                """
+                UPDATE stocks
+                SET account_name = ?
+                WHERE id = ? AND user_id = ?
+                """,
+                (data["accountName"], stock_id, user_id),
+            )
+        conn.commit()
+        conn.close()
+        return jsonify({"message": "계좌명이 변경되었습니다."})
+
     if "isSold" in data:
         if USE_POSTGRES:
             cursor.execute(
